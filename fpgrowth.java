@@ -183,8 +183,37 @@ public class fpgrowth {
                 }
             }
         }
-        for (int i = 0; i < nodePointer.get(3).size(); i++) {
-            System.out.println("Node 3 - Count: " + nodePointer.get(3).get(i).getCount() + " PrevNode: " + nodePointer.get(3).get(i).getPrevious().getId());
+
+        // Backtracking timeeee
+        Map<Integer, Integer> reverseSortedMap = new LinkedHashMap<Integer, Integer>();
+        for (int i = sortedList.size() - 1; i >= 0; i--) {
+            reverseSortedMap.put(sortedList.get(i).getKey(), sortedList.get(i).getValue());
+        }
+
+        keys = reverseSortedMap.keySet();
+        transiterator = keys.iterator();
+
+        while (transiterator.hasNext()) {
+            int hashKey = transiterator.next();
+            ArrayList<Node> idNodes = nodePointer.get(hashKey);
+            Map<Set<Integer>, Integer> itemTraversals = new LinkedHashMap<Set<Integer>, Integer>();
+
+            // For all the nodes that it points to
+            for (int i = 0; i < idNodes.size(); i++) {
+                Node currentNode = idNodes.get(i);
+                int count = currentNode.getCount();
+                Set<Integer> traversal = new HashSet<Integer>();
+                // While I'm not at the root node
+                while(currentNode.getPrevious().getId() != -1) {
+                    traversal.add(currentNode.getPrevious().getId());
+                    currentNode = currentNode.getPrevious();
+                }
+                if (traversal.size() != 0) {
+                    itemTraversals.put(traversal, count);
+                }
+            }
+
+            System.out.println(itemTraversals);
         }
     }
 }
