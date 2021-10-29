@@ -80,7 +80,11 @@ public class fpgrowth {
         }
 
         // Sorts shit I guess
+        // Added a second dimension so that I can save the pointers to the nodes
         List<Entry<Integer, Integer>> sortedList = new ArrayList<Entry<Integer, Integer>>(itemset.entrySet());
+
+        Map<Integer, Integer> sortedMap = new LinkedHashMap<Integer, Integer>();
+        Map<Integer, ArrayList<Node>> nodePointer = new LinkedHashMap<Integer, ArrayList<Node>>();
 
         Comparator<Entry<Integer, Integer>> comp = new Comparator<Entry<Integer,Integer>>() {
             public int compare(Entry<Integer, Integer> a, Entry<Integer, Integer> b) {
@@ -100,6 +104,11 @@ public class fpgrowth {
         };
 
         Collections.sort(sortedList, comp);
+
+        // Put all values back into a Map
+        for (int i = 0; i < sortedList.size(); i++) {
+            sortedMap.put(sortedList.get(i).getKey(), sortedList.get(i).getValue());
+        }
 
         // Now I've gotta sort the items by occurance in the tdb
         Map<Integer, SortedSet<Integer>> newTD = new LinkedHashMap<Integer, SortedSet<Integer>>();
@@ -129,8 +138,6 @@ public class fpgrowth {
             newTD.put(hashKey, orderedItems);
         }
 
-        System.out.println(newTD);
-
         // TDB now sorted
         // Time to build the stupid node thing... this fucking sucks
         Node root = new Node(-1);
@@ -143,31 +150,41 @@ public class fpgrowth {
             SortedSet<Integer> transaction = newTD.get(hashKey);
 
             Iterator<Integer> itemIter = transaction.iterator();
+
             Node currentNode = root;
-            ArrayList<Node> nextNodes= root.getNext();
+            ArrayList<Node> nextNodes = root.getNext();
 
             while(itemIter.hasNext()) {
                 int itemID = itemIter.next();
-                boolean makeNewNode = true;
+                boolean toContinue = true;
                 for (int i = 0; i < nextNodes.size(); i++) {
-                    // Node already exists, just increment
                     if (nextNodes.get(i).getId() == itemID) {
-                        makeNewNode = false;
                         nextNodes.get(i).incrementCount(1);
                         currentNode = nextNodes.get(i);
                         nextNodes = currentNode.getNext();
+                        toContinue = false;
                     }
                 }
-                // Node doesn't exist, add it.
-                if (makeNewNode) {
+                // If I made it here, there is no next node, one needs to be created
+                if (toContinue) {
                     Node newNode = new Node(itemID);
                     currentNode.setNext(newNode);
+
                     currentNode = newNode;
                     nextNodes = currentNode.getNext();
 
-                    // Have to add a pointer for the new node to the ArrayList so that we can backtrack later
+                    if (nodePointer.get(itemID) != null) {
+                        nodePointer.get(itemID).add(newNode);
+                    } else {
+                        ArrayList<Node> pointerList = new ArrayList<>();
+                        pointerList.add(newNode);
+                        nodePointer.put(itemID, pointerList);
+                    }
                 }
             }
+        }
+        for (int i = 0; i < nodePointer.get(3).size(); i++) {
+            System.out.println("Node 3 - Count: " + nodePointer.get(3).get(i).getCount() + " PrevNode: " + nodePointer.get(3).get(i).getPrevious().getId());
         }
     }
 }
