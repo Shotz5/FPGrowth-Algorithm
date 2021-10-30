@@ -79,11 +79,21 @@ public class fpgrowth {
             }
         }
 
+        keys = itemset.keySet();
+        Iterator<Integer> itemsetIterator = keys.iterator();
+
+        while (itemsetIterator.hasNext()) {
+            int hashKey = itemsetIterator.next();
+            if (itemset.get(hashKey) < min_sup) {
+                itemsetIterator.remove();
+            }
+        }
+
         // Sorts shit I guess
         // Added a second dimension so that I can save the pointers to the nodes
         List<Entry<Integer, Integer>> sortedList = new ArrayList<Entry<Integer, Integer>>(itemset.entrySet());
-
         Map<Integer, Integer> sortedMap = new LinkedHashMap<Integer, Integer>();
+        Map<Integer, Integer> reverseSortedMap = new LinkedHashMap<Integer, Integer>();
         Map<Integer, ArrayList<Node>> nodePointer = new LinkedHashMap<Integer, ArrayList<Node>>();
 
         Comparator<Entry<Integer, Integer>> comp = new Comparator<Entry<Integer,Integer>>() {
@@ -105,9 +115,16 @@ public class fpgrowth {
 
         Collections.sort(sortedList, comp);
 
-        // Put all values back into a Map
+        // Put all values back into a Map if they meet min_sup
         for (int i = 0; i < sortedList.size(); i++) {
             sortedMap.put(sortedList.get(i).getKey(), sortedList.get(i).getValue());
+        }
+
+        // Make reverseSortedMap for later
+        List<Integer> reverseKeyOrder = new ArrayList<>(sortedMap.keySet());
+        Collections.reverse(reverseKeyOrder);
+        for (int i = 0; i < reverseKeyOrder.size(); i++) {
+            reverseSortedMap.put(reverseKeyOrder.get(i), sortedMap.get(reverseKeyOrder.get(i)));
         }
 
         // Now I've gotta sort the items by occurance in the tdb
@@ -122,19 +139,30 @@ public class fpgrowth {
 
             Comparator<Integer> comp1 = new Comparator<Integer>() {
                 public int compare(Integer a, Integer b) {
-                    for (int i = 0; i < sortedList.size(); i++) {
-                        if (sortedList.get(i).getKey() == b) {
+                    if (sortedMap.get(a) < sortedMap.get(b)) {
+                        return 1;
+                    } else if (sortedMap.get(a) > sortedMap.get(b)) {
+                        return -1;
+                    } else {
+                        if (a > b) {
                             return 1;
-                        } else if (sortedList.get(i).getKey() == a) {
+                        } else if (a < b) {
                             return -1;
                         }
+                        return 0;
                     }
-                    return 0;
                 }
             };
 
             SortedSet<Integer> orderedItems = new TreeSet<>(comp1);
-            orderedItems.addAll(transactionItems);
+            Iterator<Integer> transactionIterator = transactionItems.iterator();
+
+            while (transactionIterator.hasNext()) {
+                int currentItem = transactionIterator.next();
+                if (sortedMap.containsKey(currentItem)) {
+                    orderedItems.add(currentItem);
+                }
+            }
             newTD.put(hashKey, orderedItems);
         }
 
@@ -185,22 +213,19 @@ public class fpgrowth {
         }
 
         // Backtracking timeeee
-        Map<Integer, Integer> reverseSortedMap = new LinkedHashMap<Integer, Integer>();
-        for (int i = sortedList.size() - 1; i >= 0; i--) {
-            reverseSortedMap.put(sortedList.get(i).getKey(), sortedList.get(i).getValue());
-        }
-
         keys = reverseSortedMap.keySet();
         transiterator = keys.iterator();
 
         while (transiterator.hasNext()) {
             int hashKey = transiterator.next();
             ArrayList<Node> idNodes = nodePointer.get(hashKey);
+            Set<Integer> itemTraversed = new LinkedHashSet<Integer>();
             Map<Set<Integer>, Integer> itemTraversals = new LinkedHashMap<Set<Integer>, Integer>();
 
             // For all the nodes that it points to
             for (int i = 0; i < idNodes.size(); i++) {
                 Node currentNode = idNodes.get(i);
+                int startItem = currentNode.getId();
                 int count = currentNode.getCount();
                 Set<Integer> traversal = new HashSet<Integer>();
                 // While I'm not at the root node
@@ -211,9 +236,11 @@ public class fpgrowth {
                 if (traversal.size() != 0) {
                     itemTraversals.put(traversal, count);
                 }
+                itemTraversed.add(startItem);
             }
 
-            System.out.println(itemTraversals);
+            // Find the 
+            System.out.println(itemTraversed + " " + itemTraversals);
         }
     }
 }
