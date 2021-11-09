@@ -215,17 +215,18 @@ public class fpgrowth {
         // Backtracking timeeee
         keys = reverseSortedMap.keySet();
         transiterator = keys.iterator();
+        Map<Integer, Map<Set<Integer>, Integer>> patternBases = new LinkedHashMap<Integer, Map<Set<Integer>, Integer>>();
 
         while (transiterator.hasNext()) {
             int hashKey = transiterator.next();
             ArrayList<Node> idNodes = nodePointer.get(hashKey);
-            Set<Integer> itemTraversed = new LinkedHashSet<Integer>();
+            int itemTraversed = -1;
             Map<Set<Integer>, Integer> itemTraversals = new LinkedHashMap<Set<Integer>, Integer>();
 
             // For all the nodes that it points to
             for (int i = 0; i < idNodes.size(); i++) {
                 Node currentNode = idNodes.get(i);
-                int startItem = currentNode.getId();
+                itemTraversed = currentNode.getId();
                 int count = currentNode.getCount();
                 Set<Integer> traversal = new HashSet<Integer>();
                 // While I'm not at the root node
@@ -236,11 +237,30 @@ public class fpgrowth {
                 if (traversal.size() != 0) {
                     itemTraversals.put(traversal, count);
                 }
-                itemTraversed.add(startItem);
             }
 
-            // Find the 
-            System.out.println(itemTraversed + " " + itemTraversals);
+            if (itemTraversed != -1) {
+                patternBases.put(itemTraversed, itemTraversals);
+            } else {
+                System.out.println("Something went wrong... exiting...");
+                System.exit(0);
+            }
+
+        }
+        // Find the conditional pattern bases
+        keys = patternBases.keySet();
+        transiterator = keys.iterator();
+        Map<Set<Integer>, Integer> conditionalTree = new LinkedHashMap<Set<Integer>, Integer>();
+
+        while (transiterator.hasNext()) {
+            int item = transiterator.next();
+            Map<Set<Integer>, Integer> traversals = patternBases.get(item);
+            Set<Set<Integer>> newKeys = traversals.keySet();
+            Iterator<Set<Integer>> keyIter = newKeys.iterator();
+            while (keyIter.hasNext()) {
+                System.out.println(keyIter.next());
+            }
+            System.out.println();
         }
     }
 }
