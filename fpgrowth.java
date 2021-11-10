@@ -212,7 +212,7 @@ public class fpgrowth {
             }
         }
 
-        // Backtracking timeeee
+        // Find all the traversals
         keys = reverseSortedMap.keySet();
         transiterator = keys.iterator();
         Map<Integer, Map<Set<Integer>, Integer>> patternBases = new LinkedHashMap<Integer, Map<Set<Integer>, Integer>>();
@@ -247,20 +247,61 @@ public class fpgrowth {
             }
 
         }
+
         // Find the conditional pattern bases
         keys = patternBases.keySet();
         transiterator = keys.iterator();
-        Map<Set<Integer>, Integer> conditionalTree = new LinkedHashMap<Set<Integer>, Integer>();
+        Map<Integer, Map<Integer, Integer>> conditionalTrees = new LinkedHashMap<>();
 
         while (transiterator.hasNext()) {
-            int item = transiterator.next();
-            Map<Set<Integer>, Integer> traversals = patternBases.get(item);
-            Set<Set<Integer>> newKeys = traversals.keySet();
+            int fpItem = transiterator.next(); // a
+            Map<Set<Integer>, Integer> traversals = patternBases.get(fpItem); // {c:1} {bce:1}
+            Set<Set<Integer>> newKeys = traversals.keySet(); // {[c], [bce]}
             Iterator<Set<Integer>> keyIter = newKeys.iterator();
+
+            Map<Integer, Integer> itemCounts = new HashMap<Integer, Integer>();
+
+            // Generate the conditional trees
             while (keyIter.hasNext()) {
-                System.out.println(keyIter.next());
+                Set<Integer> traversal = keyIter.next();
+                Iterator<Integer> travIter = traversal.iterator();
+                while(travIter.hasNext()) {
+                    int thisItem = travIter.next();
+                    if (!itemCounts.containsKey(thisItem)) {
+                        itemCounts.put(thisItem, traversals.get(traversal));
+                    } else {
+                        itemCounts.put(thisItem, (itemCounts.get(thisItem) + traversals.get(traversal)));
+                    }
+                }
             }
-            System.out.println();
+
+            Set<Integer> countKeys = itemCounts.keySet();
+            Iterator<Integer> countIter = countKeys.iterator();
+
+            // Remove the ones that don't meet min_sup
+            while(countIter.hasNext()) {
+                int itemCounter = countIter.next();
+                if (itemCounts.get(itemCounter) < min_sup) {
+                    countIter.remove();
+                }
+            }
+
+            conditionalTrees.put(fpItem, itemCounts);
+        }
+
+        // Parse the conditionalTrees to get the final FPs
+        Set<Integer> treeKeys = conditionalTrees.keySet();
+        Iterator<Integer> treeIter = treeKeys.iterator();
+
+        while (treeIter.hasNext()) {
+            int fpItem = treeIter.next();
+            Map<Integer, Integer> currentTree = conditionalTrees.get(fpItem);
+
+            Set<Integer> currentTreeKeys = currentTree.keySet();
+            Iterator<Integer> currentTreeIter = currentTreeKeys.iterator();
+            while (currentTreeIter.hasNext()) {
+                // Gotta somehow get the power set without wanting direct suicide
+            }
         }
     }
 }
