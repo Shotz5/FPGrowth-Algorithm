@@ -5,6 +5,7 @@ public class Node {
     private final int ITEM_ID;
     private ArrayList<Node> NEXT_NODES;
     private Node PREV_NODE;
+    private Node nextItemPointer;
 
     public Node(int itemid) {
         NEXT_NODES = new ArrayList<>();
@@ -19,6 +20,11 @@ public class Node {
 
     public boolean decrementCount(int value) {
         count -= value;
+        return true;
+    }
+
+    public boolean setCount(int value) {
+        count = value;
         return true;
     }
 
@@ -47,5 +53,14 @@ public class Node {
 
     public int getId() {
         return ITEM_ID;
+    }
+
+    public boolean setNextPointer(Node n) {
+        nextItemPointer = n;
+        return true;
+    }
+
+    public Node getNextPointer() {
+        return nextItemPointer;
     }
 }

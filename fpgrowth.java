@@ -6,34 +6,30 @@ public class fpgrowth {
     public static int MIN_SUP;
     public static Node ROOT = new Node(-1);
     public static Map<Integer, Integer> countedTransItems = new LinkedHashMap<>();
-    public static void main(String[] args) throws FileNotFoundException {
+    public static Map<Set<Integer>, Integer> FPs = new LinkedHashMap<>();
 
+    public static void main(String[] args) throws FileNotFoundException {
+        long startTime = System.currentTimeMillis();
         if (args.length != 2) {
             System.out.println("Incorrect args! Exiting");
             return;
         } else {
-            inputFromFile(args[0], args[1], new LinkedHashMap<>());
+            inputFromFile(args[0], args[1], new HashMap<>());
         }
+        trimMinSup(countedTransItems);
         
-        Map<Integer, Integer> sortedItemMap = sortCountedItems(false);
-        Map<Integer, Integer> reverseSortedMap = sortCountedItems(true);
-        Map<Integer, ArrayList<Node>> nodePointer = inputFromFile(args[0], args[1], sortedItemMap);
-        Map<Integer, Map<Set<Integer>, Integer>> patternBases = findTraversals(reverseSortedMap, nodePointer);
-        Map<Integer, Map<Integer, Integer>> conditionalTrees = findConditionalTrees(patternBases);
-        Map<Set<Integer>, Integer> FPs = parseConditionalTrees(conditionalTrees);
-
-        System.out.println(FPs);
-        //long startTime = System.currentTimeMillis();
-        /*Map<Set<Integer>, Integer> fps = *///fpgrowth(transactionDB, min_sup);
-        //long totalTime = System.currentTimeMillis() - startTime;
-        //System.out.println("Found " + fps.size() + " FPs and executed in " + totalTime + " milliseconds");
-
-        //outputToFile(fps);
+        Map<Integer, Integer> sortedItemMap = sortCountedItems(countedTransItems, false);
+        Map<Integer, Integer> reverseSortedMap = sortCountedItems(countedTransItems, true);
+        Map<Integer, Node> nodePointer = inputFromFile(args[0], args[1], sortedItemMap);
+        mineFPTree(reverseSortedMap, nodePointer, new HashSet<>());
+        long totalTime = System.currentTimeMillis() - startTime;
+        System.out.println("Found " + FPs.size() + " FPs and executed in " + totalTime + " milliseconds");
+        outputToFile(FPs);
     }
 
-    public static Map<Integer, ArrayList<Node>> inputFromFile(String fileName, String minSupPercentage, Map<Integer, Integer> sortedOrder) throws FileNotFoundException {
+    public static Map<Integer, Node> inputFromFile(String fileName, String minSupPercentage, Map<Integer, Integer> sortedItemMap) throws FileNotFoundException {
         File dataSet = new File(fileName);
-        Map<Integer, ArrayList<Node>> nodePointer = new LinkedHashMap<Integer, ArrayList<Node>>();
+        Map<Integer, Node> nodePointer = new HashMap<>();
 
         int minSupPercent = Integer.parseInt(minSupPercentage);
         if (minSupPercent > 100 || minSupPercent < 0) {
@@ -50,14 +46,27 @@ public class fpgrowth {
         Map<Integer, Set<Integer>> transactionDB = new HashMap<Integer, Set<Integer>>();
         int counter = 0;
         while(input.hasNextLine()) {
-            if (counter % 1000 == 0) {
-                if (sortedOrder.isEmpty()) {
-                    countItems(transactionDB);
+            if (counter % 2 == 0) {
+                if (sortedItemMap.isEmpty()) {
+                    Map<Integer, Integer> countedItems = countItems(transactionDB);
+
+                    Set<Integer> key = countedItems.keySet();
+                    Iterator<Integer> iterator = key.iterator();
+
+                    while(iterator.hasNext()) {
+                        int itemKey = iterator.next();
+                        if (countedTransItems.containsKey(itemKey)) {
+                            countedTransItems.put(itemKey, countedTransItems.get(itemKey) + countedItems.get(itemKey));
+                        } else {
+                            countedTransItems.put(itemKey, countedItems.get(itemKey));
+                        }
+                    }
                 } else {
-                    Map<Integer, SortedSet<Integer>> sortedTDs = sortTransactions(transactionDB, sortedOrder);
-                    nodePointer.putAll(FPTree(sortedTDs));
+                    Map<Integer, SortedSet<Integer>> sortedTDs = sortTransactions(transactionDB, sortedItemMap);
+                    nodePointer = FPTree(sortedTDs, nodePointer);
                 }
-                transactionDB = new HashMap<Integer, Set<Integer>>();
+
+                transactionDB = new HashMap<>();
             }
             String transaction = input.nextLine();
             String[] transactionSplit = transaction.split("\\s"); // Split on every whitespace character (tab or space)
@@ -72,18 +81,77 @@ public class fpgrowth {
         }
         input.close();
 
-        if (sortedOrder.isEmpty()) {
-            countItems(transactionDB);
-            trimMinSup(MIN_SUP);
+        if (sortedItemMap.isEmpty()) {
+            Map<Integer, Integer> countedItems = countItems(transactionDB);
+
+            Set<Integer> key = countedItems.keySet();
+            Iterator<Integer> iterator = key.iterator();
+
+            while(iterator.hasNext()) {
+                int itemKey = iterator.next();
+                if (countedTransItems.containsKey(itemKey)) {
+                    countedTransItems.put(itemKey, countedTransItems.get(itemKey) + countedItems.get(itemKey));
+                } else {
+                    countedTransItems.put(itemKey, countedItems.get(itemKey));
+                }
+            }
         } else {
-            Map<Integer, SortedSet<Integer>> sortedTDs = sortTransactions(transactionDB, sortedOrder);
-            nodePointer.putAll(FPTree(sortedTDs));
+            Map<Integer, SortedSet<Integer>> sortedTDs = sortTransactions(transactionDB, sortedItemMap);
+            nodePointer = FPTree(sortedTDs, nodePointer);
         }
 
         return nodePointer;
     }
 
-    public static void countItems(Map<Integer, Set<Integer>> TD) {
+    public static void mineFPTree(Map<Integer, Integer> sortedItemMap, Map<Integer, Node> nodePointer, Set<Integer> base) {
+        Set<Integer> sortedSet = sortedItemMap.keySet();
+        Iterator<Integer> itemIter = sortedSet.iterator();
+
+        while(itemIter.hasNext()) {
+            int item = itemIter.next();
+            Node firstNode = nodePointer.get(item);
+            Set<Integer> currentPattern = new HashSet<>();
+            currentPattern.addAll(base);
+            currentPattern.add(item);
+            int condPatternSupport = firstNode.getCount();
+            int totalSupport = 0;
+
+            Map<Set<Integer>, Integer> condPatternBase = new HashMap<>();
+
+            while(firstNode != null) {
+                Set<Integer> traversal = new HashSet<>();
+                totalSupport += firstNode.getCount();
+                condPatternSupport = firstNode.getCount();
+                Node currentNode = firstNode;
+                while (currentNode.getPrevious().getId() != -1) {
+                    currentNode = currentNode.getPrevious();
+                    traversal.add(currentNode.getId());
+                }
+                firstNode = firstNode.getNextPointer();
+                if (!traversal.isEmpty()) {
+                    condPatternBase.put(traversal, condPatternSupport);
+                }
+            }
+
+            if (totalSupport >= MIN_SUP) {
+                FPs.put(currentPattern, totalSupport);
+            }
+
+            Map<Integer, Integer> frequencyTable = countMinedItems(condPatternBase);
+            Map<Integer, Integer> sortedFreqTable = sortCountedItems(frequencyTable, false);
+            Map<Integer, Integer> reverseSortedFreqTable = sortCountedItems(frequencyTable, true);
+            Map<SortedSet<Integer>, Integer> sortedCondPatternBases = sortForCondTree(condPatternBase, sortedFreqTable);
+
+            Map<Integer, Node> conditionalTree = condFPTree(sortedCondPatternBases);
+
+            if (!conditionalTree.isEmpty()) {
+                mineFPTree(reverseSortedFreqTable, conditionalTree, currentPattern);
+            }
+        }
+    }
+
+    public static Map<Integer, Integer> countItems(Map<Integer, Set<Integer>> TD) {
+        Map<Integer, Integer> countedTransItems = new LinkedHashMap<>();
         Set<Integer> keys = TD.keySet();
         Iterator<Integer> transiterator = keys.iterator();
 
@@ -107,22 +175,24 @@ public class fpgrowth {
                 }
             }
         }
+
+        return countedTransItems;
     }
 
-    public static void trimMinSup(int min_sup) {
+    public static void trimMinSup(Map<Integer, Integer> countedTransItems) {
         Set<Integer> keys = countedTransItems.keySet();
         Iterator<Integer> itemsetIterator = keys.iterator();
 
         while (itemsetIterator.hasNext()) {
             int hashKey = itemsetIterator.next();
-            if (countedTransItems.get(hashKey) < min_sup) {
+            if (countedTransItems.get(hashKey) < MIN_SUP) {
                 itemsetIterator.remove();
             }
         }
         return;
     }
 
-    public static Map<Integer, Integer> sortCountedItems(boolean reverseSort) {
+    public static Map<Integer, Integer> sortCountedItems(Map<Integer, Integer> countedTransItems, boolean reverseSort) {
         List<Entry<Integer, Integer>> sortedList = new ArrayList<Entry<Integer, Integer>>(countedTransItems.entrySet());
         Map<Integer, Integer> sortedMap = new LinkedHashMap<Integer, Integer>();
 
@@ -214,8 +284,7 @@ public class fpgrowth {
         return newTD;
     }
 
-    public static Map<Integer, ArrayList<Node>> FPTree(Map<Integer, SortedSet<Integer>> TD) {
-        Map<Integer, ArrayList<Node>> nodePointer = new LinkedHashMap<Integer, ArrayList<Node>>();
+    public static Map<Integer, Node> FPTree(Map<Integer, SortedSet<Integer>> TD, Map<Integer, Node> nodePointer) {
         Set<Integer> keys = TD.keySet();
         Iterator<Integer> transiterator = keys.iterator();
 
@@ -247,12 +316,14 @@ public class fpgrowth {
                     currentNode = newNode;
                     nextNodes = currentNode.getNext();
 
+                    Node itemNode = nodePointer.get(itemID);
                     if (nodePointer.get(itemID) != null) {
-                        nodePointer.get(itemID).add(newNode);
+                        while (itemNode.getNextPointer() != null) {
+                            itemNode = itemNode.getNextPointer();
+                        }
+                        itemNode.setNextPointer(newNode);
                     } else {
-                        ArrayList<Node> pointerList = new ArrayList<>();
-                        pointerList.add(newNode);
-                        nodePointer.put(itemID, pointerList);
+                        nodePointer.put(itemID, newNode);
                     }
                 }
             }
@@ -260,143 +331,138 @@ public class fpgrowth {
         return nodePointer;
     }
 
-    public static Map<Integer, Map<Set<Integer>, Integer>> findTraversals(Map<Integer, Integer> reverseSortedMap, Map<Integer, ArrayList<Node>> nodePointer) {
-        // Find all the traversals
-        Map<Integer, Map<Set<Integer>, Integer>> patternBases = new LinkedHashMap<Integer, Map<Set<Integer>, Integer>>();
+    private static boolean outputToFile(Map<Set<Integer>, Integer> fps) throws FileNotFoundException {
+        PrintWriter fileOutput = new PrintWriter("MiningResult.txt");
+        fileOutput.println("|FPs| = " + fps.size());
 
-        Set<Integer> keys = reverseSortedMap.keySet();
-        Iterator<Integer> transiterator = keys.iterator();
+        Set<Set<Integer>> fpsKeys = fps.keySet();
+        Iterator<Set<Integer>> fpsItem = fpsKeys.iterator();
 
-        while (transiterator.hasNext()) {
-            int hashKey = transiterator.next();
-            ArrayList<Node> idNodes = nodePointer.get(hashKey);
-            int itemTraversed = -1;
-            Map<Set<Integer>, Integer> itemTraversals = new LinkedHashMap<Set<Integer>, Integer>();
-
-            // For all the nodes that it points to
-            for (int i = 0; i < idNodes.size(); i++) {
-                Node currentNode = idNodes.get(i);
-                itemTraversed = currentNode.getId();
-                int count = currentNode.getCount();
-                Set<Integer> traversal = new HashSet<Integer>();
-                // While I'm not at the root node
-                while(currentNode.getPrevious().getId() != -1) {
-                    traversal.add(currentNode.getPrevious().getId());
-                    currentNode = currentNode.getPrevious();
-                }
-                if (traversal.size() != 0) {
-                    itemTraversals.put(traversal, count);
-                }
-            }
-
-            if (itemTraversed != -1) {
-                patternBases.put(itemTraversed, itemTraversals);
-            } else {
-                System.out.println("Something went wrong... exiting...");
-                System.exit(0);
-            }
+        while(fpsItem.hasNext()) {
+            Set<Integer> currentFps = fpsItem.next();
+            fileOutput.println(currentFps + " : " + fps.get(currentFps));
         }
-        return patternBases;
+
+        fileOutput.close();
+
+        return true;
     }
 
-    public static Map<Integer, Map<Integer, Integer>> findConditionalTrees(Map<Integer, Map<Set<Integer>, Integer>> patternBases) {
-        Map<Integer, Map<Integer, Integer>> conditionalTrees = new LinkedHashMap<>();
 
-        // Find the conditional pattern bases
-        Set<Integer> keys = patternBases.keySet();
-        Iterator<Integer> transiterator = keys.iterator();
-        
+    /* THESE METHODS ARE SPECIAL TO THE MINING METHOD DUE TO THE MIRRORED FORMAT */
+    
+    public static Map<Integer, Integer> countMinedItems(Map<Set<Integer>, Integer> traversals) {
+        Set<Set<Integer>> keySet = traversals.keySet();
+        Iterator<Set<Integer>> iterator = keySet.iterator();
 
-        while (transiterator.hasNext()) {
-            int fpItem = transiterator.next(); // a
-            Map<Set<Integer>, Integer> traversals = patternBases.get(fpItem); // {c:1} {bce:1}
-            Set<Set<Integer>> newKeys = traversals.keySet(); // {[c], [bce]}
-            Iterator<Set<Integer>> keyIter = newKeys.iterator();
+        Map<Integer, Integer> itemCount = new HashMap<>();
 
-            Map<Integer, Integer> itemCounts = new HashMap<Integer, Integer>();
+        while(iterator.hasNext()) {
+            Set<Integer> currentSet = iterator.next();
+            Iterator<Integer> iterator2 = currentSet.iterator();
+            int support = traversals.get(currentSet);
 
-            // Generate the conditional trees
-            while (keyIter.hasNext()) {
-                Set<Integer> traversal = keyIter.next();
-                Iterator<Integer> travIter = traversal.iterator();
-                while(travIter.hasNext()) {
-                    int thisItem = travIter.next();
-                    if (!itemCounts.containsKey(thisItem)) {
-                        itemCounts.put(thisItem, traversals.get(traversal));
+            while(iterator2.hasNext()) {
+                int item = iterator2.next();
+                if (itemCount.containsKey(item)) {
+                    itemCount.put(item, (itemCount.get(item) + support));
+                } else {
+                    itemCount.put(item, support);
+                }
+            }
+        }
+
+        return itemCount;
+    }
+
+    public static Map<SortedSet<Integer>, Integer> sortForCondTree(Map<Set<Integer>, Integer> TD, Map<Integer, Integer> sortedOrder) {
+        Map<SortedSet<Integer>, Integer> sortedPatternBase = new HashMap<>();
+
+        Set<Set<Integer>> keySet = TD.keySet();
+        Iterator<Set<Integer>> iterator = keySet.iterator();
+
+        while(iterator.hasNext()) {
+            Set<Integer> pattern = iterator.next();
+            
+            Comparator<Integer> comp1 = new Comparator<Integer>() {
+                public int compare(Integer a, Integer b) {
+                    if (sortedOrder.get(a) < sortedOrder.get(b)) {
+                        return 1;
+                    } else if (sortedOrder.get(a) > sortedOrder.get(b)) {
+                        return -1;
                     } else {
-                        itemCounts.put(thisItem, (itemCounts.get(thisItem) + traversals.get(traversal)));
+                        if (a > b) {
+                            return 1;
+                        } else if (a < b) {
+                            return -1;
+                        }
+                        return 0;
+                    }
+                }
+            };
+
+            SortedSet<Integer> orderedItems = new TreeSet<>(comp1);
+            Iterator<Integer> transactionIterator = pattern.iterator();
+
+            while (transactionIterator.hasNext()) {
+                int currentItem = transactionIterator.next();
+                if (sortedOrder.containsKey(currentItem)) {
+                    orderedItems.add(currentItem);
+                }
+            }
+            sortedPatternBase.put(orderedItems, TD.get(pattern));
+        }
+
+        return sortedPatternBase;
+    }
+
+    public static Map<Integer, Node> condFPTree(Map<SortedSet<Integer>, Integer> patternBase) {
+        Map<Integer, Node> nodePointer = new LinkedHashMap<Integer, Node>();
+        Node root = new Node(-1);
+
+        Set<SortedSet<Integer>> keys = patternBase.keySet();
+        Iterator<SortedSet<Integer>> transiterator = keys.iterator();
+
+        while (transiterator.hasNext()) {
+            SortedSet<Integer> transaction = transiterator.next();
+
+            Iterator<Integer> itemIter = transaction.iterator();
+
+            Node currentNode = root;
+            ArrayList<Node> nextNodes = root.getNext();
+
+            while(itemIter.hasNext()) {
+                int itemID = itemIter.next();
+                boolean toContinue = true;
+                for (int i = 0; i < nextNodes.size(); i++) {
+                    if (nextNodes.get(i).getId() == itemID) {
+                        nextNodes.get(i).incrementCount(patternBase.get(transaction));
+                        currentNode = nextNodes.get(i);
+                        nextNodes = currentNode.getNext();
+                        toContinue = false;
+                    }
+                }
+                // If I made it here, there is no next node, one needs to be created
+                if (toContinue) {
+                    Node newNode = new Node(itemID);
+                    newNode.setCount(patternBase.get(transaction));
+                    currentNode.setNext(newNode);
+
+                    currentNode = newNode;
+                    nextNodes = currentNode.getNext();
+
+                    Node itemNode = nodePointer.get(itemID);
+                    if (nodePointer.get(itemID) != null) {
+                        while (itemNode.getNextPointer() != null) {
+                            itemNode = itemNode.getNextPointer();
+                        }
+                        itemNode.setNextPointer(newNode);
+                    } else {
+                        nodePointer.put(itemID, newNode);
                     }
                 }
             }
-
-            Set<Integer> countKeys = itemCounts.keySet();
-            Iterator<Integer> countIter = countKeys.iterator();
-
-            // Remove the ones that don't meet min_sup
-            while(countIter.hasNext()) {
-                int itemCounter = countIter.next();
-                if (itemCounts.get(itemCounter) < MIN_SUP) {
-                    countIter.remove();
-                }
-            }
-
-            conditionalTrees.put(fpItem, itemCounts);
         }
-        return conditionalTrees;
-    }
-
-    public static Map<Set<Integer>, Integer> parseConditionalTrees(Map<Integer, Map<Integer, Integer>> conditionalTrees) {
-        Map<Set<Integer>, Integer> FPs = new HashMap<>();
-        // Parse the conditionalTrees to get the final FPs
-        Set<Integer> treeKeys = conditionalTrees.keySet();
-        Iterator<Integer> treeIter = treeKeys.iterator();
-
-        while (treeIter.hasNext()) {
-            int fpItem = treeIter.next();
-            Map<Integer, Integer> currentTree = conditionalTrees.get(fpItem);
-
-            Set<Integer> currentTreeKeys = currentTree.keySet();
-            Set<Set<Integer>> powerSet = powerSet(currentTreeKeys);
-
-            Iterator<Set<Integer>> powerSetIter = powerSet.iterator();
-            while (powerSetIter.hasNext()) {
-                Set<Integer> currentPossibleFP = powerSetIter.next();
-                Iterator<Integer> FPValueIterator = currentPossibleFP.iterator();
-                int lowestCommonValue = Integer.MAX_VALUE;
-                while(FPValueIterator.hasNext()) {
-                    int currentValue = FPValueIterator.next();
-                    if (lowestCommonValue > currentTree.get(currentValue)) {
-                        lowestCommonValue = currentTree.get(currentValue);
-                    }
-                }
-                if (currentPossibleFP.isEmpty()) {
-                    lowestCommonValue = countedTransItems.get(fpItem);
-                }
-                currentPossibleFP.add(fpItem);
-                if (lowestCommonValue >= MIN_SUP) {
-                    FPs.put(currentPossibleFP, lowestCommonValue);
-                }
-            }
-        }
-        return FPs;
-    }
-
-    public static Set<Set<Integer>> powerSet(Set<Integer> inSet) {
-        Set<Set<Integer>> sets = new HashSet<>();
-        if (inSet.isEmpty()) {
-            sets.add(new HashSet<>());
-            return sets;
-        }
-        List<Integer> arrayList = new ArrayList<>(inSet);
-        int first = arrayList.get(0);
-        Set<Integer> leftOver = new HashSet<>(arrayList.subList(1, arrayList.size()));
-        for (Set<Integer> set : powerSet(leftOver)) {
-            Set<Integer> newSet = new HashSet<>();
-            newSet.add(first);
-            newSet.addAll(set);
-            sets.add(newSet);
-            sets.add(set);
-        }
-        return sets;
+        return nodePointer;
     }
 }
