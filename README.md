@@ -5,7 +5,7 @@ This is a Java implmentation of an FPGrowth Algorithm, which is designed to find
 Execute by CDing into folder and typing `java fpgrowth ./[filename] [min_sup_percentage]`
 
 ## Data Input
-Program is not designed to work with unformatted data. Any input files must be of format (\s meaning any white space character):
+Program is not designed to work with unformatted data. Any input files must be of format (\s meaning any white space character, [item x] being any integer without duplicates per transaction):
 ```
 [# of transactions]\n
 [transaction #]\s[# of items in transaction]\s[item 1]\s[item 2]\s...\s[item n]\n
@@ -15,10 +15,11 @@ Program is not designed to work with unformatted data. Any input files must be o
 ```
 
 ## Misc Notes
-This was a long time coming, and significantly more difficult than I imagined. Almost 400 lines of code to do the same thing that Apriori does, but entirely more efficiently. There may be some repetitive code, but it was necessary in order to think the problem through step-by-step in order to avoid any headaches.
+This was a long time coming, and significantly more difficult than I imagined. Almost 600 lines of code to do the same thing that Apriori does, but entirely less efficiently for our provided datasets.
 
-In this problem, the most inefficient part of the problem with be the power set generator. It is a whopping O(2<sup>n</sup>). However it is necessary to find all the possible FPs in the conditional trees, and works surprisingly well for the case.
+There are many methods with very similar, but every so slightly different logic that had to be changed to fit the `mineFPTree()` method due to the method requiring the conditional pattern bases to be the *key.* In making the original set, the keys are the transaction numbers.
 
+In this problem, the most inefficient part of the problem will be the recursion. It is a whopping O(2<sup>n</sup>) time complexity.
 
 ## Testing
 Unit testing on a Ryzen 7 3800x reveals the following average execution speeds for given datasets:
